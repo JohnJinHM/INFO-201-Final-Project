@@ -30,7 +30,7 @@ df <- merge(x=df1,y=df2_processed,by=c("Country", "Year"),all.y=TRUE)
 # Useful Data
 df <- df[,-c(3:5,7,9:24)]
 
-# write.csv(df,"cleaned_dataset.csv",row.names = FALSE)
+# write.csv(df,"Economy_Indicators_and_Food_Price_by_Country.csv",row.names = FALSE)
 
 # Data Cleaning & Augmentation
 # Categorical Variable
