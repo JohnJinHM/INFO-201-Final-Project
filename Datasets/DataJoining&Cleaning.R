@@ -2,12 +2,12 @@ library(stringr)
 library(dplyr)
 library(ggplot2)
 
-df1 <- read.csv("Global_Economy_Indicators_cleaned.csv")
+df1 <- read.csv("Datasets/Global_Economy_Indicators_cleaned.csv")
 # Clean df1
 # df1 <- mapply(str_trim,df1)
 # write.csv(df1,"Global_Economy_Indicators_cleaned.csv",row.names = FALSE)
 
-df2 <- read.csv("wfpvam_foodprices_cleaned.csv")
+df2 <- read.csv("Datasets/wfpvam_foodprices_cleaned.csv")
 # Clean df2
 # Original file of df2 is too large to be uploaded! (215mb)
 # It can be retrieved from https://data.humdata.org/dataset/wfp-food-prices/resource/12d7c8e3-eff9-4db0-93b7-726825c4fe9a
@@ -28,7 +28,7 @@ df <- merge(x=df1,y=df2,by.x=c("Country", "Year"),by.y=c("adm0_name","mp_year"),
 # Filter useful columns
 df <- df[,-c(3:5,7,9:24)]
 
-write.csv(df,"MergedDataset.csv",row.names = FALSE)
+write.csv(df,"Datasets/MergedDataset.csv",row.names = FALSE)
 
 # Data Cleaning & Augmentation
 # Categorical Variable
