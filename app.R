@@ -1,11 +1,12 @@
-library(dplyr)
-library(stringr)
-library(ggplot2)
-library(shiny)
-library(plotly)
+library("dplyr")
+library("stringr")
+library("ggplot2")
+library("shiny")
+library("plotly")
+library("rsconnect")
 
-df <- read.csv("Datasets/MergedDataset.csv")
-econDf <- read.csv("Datasets/Global_Economy_Indicators_cleaned.csv")
+df <- read.csv(paste0(getwd(),"/Datasets/MergedDataset.csv"))
+econDf <- read.csv(paste0(getwd(),"/Datasets/Global_Economy_Indicators_cleaned.csv"))
 addResourcePath("library", getwd())
 
 cm_choices <- count(df, cm_name)
@@ -13,7 +14,7 @@ indicatorNames <- list("Year"="Year","Population" = "Population","mean_price"="F
 
 ui <- navbarPage(inverse = TRUE, "Global Food Price",
     tabPanel("Intro",
-        tags$iframe(style="height:800px; width:80%", src="library/ShinyApp/IntroductoryPage.pdf")
+        tags$iframe(style="height:800px; width:80%", src="library/IntroductoryPage.pdf")
     ),
     tabPanel("How much food can you purchase?",
         fluidPage(
@@ -24,7 +25,8 @@ ui <- navbarPage(inverse = TRUE, "Global Food Price",
                         "This plot shows the amount of selected type of food that can be perchased with the mean gross income per person per year. Mind that the size of the points are proportional to the population (according to standard deviation) of the country, and the y-axis is in log scale."),
                     sliderInput(inputId = "yearSlider", label = "Focus on time periods", min = 1994, max = 2021, value = c(1994, 2021), step = 1),
                     wellPanel(h4("Insights on the plot"),"The plot can provide many inspiring insights.", br(), 
-                        "As an example, in the year of 2008, the purchasing power around the world has significantly decreased.",
+                        "As an example, in the year of 2008, the purchasing power around the world has significantly decreased.",br(),
+                        "hint: all buttons can bw clicked twice to return to the original view.",br(),
                         actionButton("focus1", "Focus on 2008"), br(), 
                         "This was likely to be the result of the 2007-2008 financial crisis, which caused a severe global economic downturn.", br(),
                         "Althought it doesn't seem significant, remember the unit of y-axis is log10 for better view. Let's try a another view.", br(),
@@ -78,6 +80,7 @@ ui <- navbarPage(inverse = TRUE, "Global Food Price",
                     ),
                     wellPanel(
                         "Many other trends may be found in the plots, click the following button to explore correlation between all the variables in the plot.",
+                        "Note that by default outliers are removed, as there are exponential differences between data of certain countries.",br(),
                         actionButton("page3focus2", "Explore Correlations"),
                         htmlOutput(outputId = "Explore")
                     ),
@@ -87,7 +90,7 @@ ui <- navbarPage(inverse = TRUE, "Global Food Price",
                     )
                 ),
                 mainPanel(
-                    wellPanel(htmlOutput(outputId = "ExplorePlot")),
+                    htmlOutput(outputId = "ExplorePlot"),
                     wellPanel(htmlOutput(outputId = "Page3Upper")),
                     wellPanel(htmlOutput(outputId = "Page3Lower"))
                 ),
@@ -200,7 +203,8 @@ server <- function(input, output, session) {
                     selectInput(inputId = "Commodity", label = "Select a commodity", choices = cm_choices[order(cm_choices$n, decreasing = TRUE),]$cm_name, selected = "Maize - Retail"),
                     sliderInput(inputId = "yearSlider3", label = "Time periods", min = 1970, max = 2021, value = c(2008,2016), step = 1),
                     checkboxInput(inputId = "logy", label = "Use log scale for y-axis", value = FALSE),
-                    checkboxInput(inputId = "logx", label = "Use log scale for x-axis", value = FALSE)
+                    checkboxInput(inputId = "logx", label = "Use log scale for x-axis", value = FALSE),
+                    checkboxInput(inputId = "outlier", label = "Remove outliers", value = TRUE),
                 )
             )
         })
@@ -215,10 +219,12 @@ server <- function(input, output, session) {
             if(!input$XIndicator=="Year"&!input$YIndicator=="Year"){
                 selectedDf <- selectedDf[selectedDf$Year >= input$yearSlider3[1] & selectedDf$Year <= input$yearSlider3[2],]
             }
-            # iqrX <- IQR(selectedDf$input$XIndicator)
-            # selectedDf <- selectedDf[selectedDf$input$XIndicator < quantile(selectedDf$input$XIndicator, 0.75) + 1.5 * iqrX & selectedDf$input$XIndicator > quantile(selectedDf$input$XIndicator, 0.25) - 1.5 * iqrX,]
-            # iqrY <- IQR(selectedDf$input$YIndicator)
-            # selectedDf <- selectedDf[selectedDf$input$YIndicator < quantile(selectedDf$input$YIndicator, 0.75) + 1.5 * iqrY & selectedDf$input$YIndicator > quantile(selectedDf$input$YIndicator, 0.25) - 1.5 * iqrY,]
+            if(input$outlier){
+                iqrX <- IQR(selectedDf[,input$XIndicator], na.rm = TRUE)
+                selectedDf <- selectedDf[selectedDf[,input$XIndicator] < quantile(selectedDf[,input$XIndicator], 0.75) + 1.5 * iqrX & selectedDf[,input$XIndicator] > quantile(selectedDf[,input$XIndicator], 0.25) - 1.5 * iqrX,]
+                iqrY <- IQR(selectedDf[,input$YIndicator], na.rm = TRUE)
+                selectedDf <- selectedDf[selectedDf[,input$YIndicator] < quantile(selectedDf[,input$YIndicator], 0.75) + 1.5 * iqrY & selectedDf[,input$YIndicator] > quantile(selectedDf[,input$YIndicator], 0.25) - 1.5 * iqrY,]
+            }
             plot <- ggplot(data = selectedDf, aes_string(x = input$XIndicator, y = input$YIndicator, color = "Country", Population = "Population", CountryName = "Country")) + geom_point(size = 1) + labs(x = indicatorNames[[input$XIndicator]], y = indicatorNames[[input$YIndicator]], color = "Country") + ggtitle(label = paste0(input$indicatorNames[[input$XIndicator]]," vs. ",input$indicatorNames[[input$YIndicator]])) + geom_smooth(method='lm', color = "Black", aes(CountryName = "Mean"))
             if(input$logy){
                 plot + scale_y_continuous(trans='log10')
@@ -226,10 +232,11 @@ server <- function(input, output, session) {
             if(input$logx){
                 plot + scale_x_continuous(trans='log10')
             }
-            return(ggplotly(plot, tooltip = c("color", "x", "y", "Population"), height = 800))
+            return(wellPanel(ggplotly(plot, tooltip = c("color", "x", "y", "Population"), height = 800)))
         })
     })
 }
 
+library(rsconnect)
 
 shinyApp(ui = ui, server = server)
